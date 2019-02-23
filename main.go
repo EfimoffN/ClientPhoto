@@ -2,37 +2,78 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
-	// "net/url"
+	"path/filepath"
+	"sync"
+
 	"os"
 
 	"mime/multipart"
 )
 
 func main() {
-	// postConvertJPG()
-	postConvertPNG()
+	namesFiles()
 }
 
-func postConvertJPG() {
+func namesFiles() {
 
-	url := "http://localhost:8080/ConvertJPG"
+	var wg sync.WaitGroup
 
-	data := `{"User": "postConvertJPG", "Key": "red"}`
+	url := "http://localhost:8080/ConvertPNG"
 
-	req, err := http.NewRequest("POST", url, bytes.NewBufferString(data))
+	path := "photos"
+
+	files, err := ioutil.ReadDir("./" + path)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	for _, f := range files {
+		wg.Add(1)
+		go postSendPhoto(f.Name(), path, url, &wg)
+	}
+
+	wg.Wait()
+}
+
+func postSendPhoto(photoName string, path string, url string, wg *sync.WaitGroup) {
+
+	defer wg.Done()
+
+	pathFile, _ := os.Getwd()
+	pathFile += `\` + path + `\` + photoName
+
+	file, err := os.Open(pathFile)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer file.Close()
+
+	paramName := "file"
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile(paramName, filepath.Base(pathFile))
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	// req.Header.Set("X-Custom-Header", "myvalue")
-	req.Header.Set("Content-Type", "application/json")
+	_, err = io.Copy(part, file)
+
+	err = writer.Close()
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	req, err := http.NewRequest("POST", url, body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -43,72 +84,6 @@ func postConvertJPG() {
 
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println(string(body))
+	bod, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println(string(bod))
 }
-
-func postConvertPNG() {
-
-	url := "http://localhost:8080/ConvertPNG"
-
-	file, err := os.Open("test.jpg")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	defer file.Close()
-
-	var sendBufBody bytes.Buffer
-
-	multiPArWriter := multipart.NewWriter(&sendBufBody)
-
-	fileWriter, err := multiPArWriter.CreateFormFile("file_field", "test.jpg")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	_, err = io.Copy(fileWriter, file)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	fieldWriter, err := multiPArWriter.CreateFormField("normal_field")
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	_, err = fieldWriter.Write([]byte("Value"))
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	multiPArWriter.Close()
-
-	req, err := http.NewRequest("POST", url, &sendBufBody)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	ttt := multiPArWriter.FormDataContentType()
-	fmt.Println(ttt)
-
-	req.Header.Set("Content-Type", multiPArWriter.FormDataContentType())
-	// req.Header.Set("Content-Type", "image/jpeg")
-
-	client := &http.Client{}
-	response, err := client.Do(req)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	var result map[string]interface{}
-	json.NewDecoder(response.Body).Decode(&result)
-
-	log.Println(result)
-}
-
-
