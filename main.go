@@ -22,7 +22,7 @@ func namesFiles() {
 
 	var wg sync.WaitGroup
 
-	url := "http://localhost:8080/ConvertPNG"
+	url := "http://localhost:8080/convertPhoto"
 
 	path := "photos"
 
