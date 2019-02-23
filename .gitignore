@@ -1,0 +1,9 @@
+*.txt
+*keys.json
+*debug
+
+
+# photos
+*jpg
+*png
+*gif
